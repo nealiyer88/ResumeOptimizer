@@ -60,10 +60,8 @@ def run_enhancement_pipeline(resume_file, job_input):
     job_keywords = extract_keywords(job_text)
 
     match_percentage = calculate_keyword_match(resume_keywords, job_keywords)
+    print(f"[🔍] Resume–Job Keyword Match: {match_percentage:.2f}%")
     enhanced_sections = {}
-
-    if match_percentage < 80:
-        missing_keywords = job_keywords - resume_keywords
 
     # Try to enhance 'experience' using the special enhancer
     if "experience" in sections:
@@ -99,7 +97,7 @@ def run_enhancement_pipeline(resume_file, job_input):
 
         enhanced_sections[section_name] = enhanced_text
 
-  # ✅ ADD THESE HERE (AFTER THE LOOP)
+  
     print("=== Sections extracted ===")
     print(sections.keys())
 
