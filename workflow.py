@@ -69,7 +69,7 @@ def run_enhancement_pipeline(resume_file, job_input):
     if "experience" in sections:
         try:
             print("[⚙️] Enhancing 'experience' section using LLM enhancer...")
-            enhanced_experience = enhance_resume_experience(resume_file, list(job_keywords))
+            enhanced_experience = enhance_resume_experience(sections["experience"], list(job_keywords))
             enhanced_sections["experience"] = enhanced_experience
             print("[✅] Experience section enhanced with LLM Enhancer.\n")
         except Exception as e:
@@ -98,5 +98,20 @@ def run_enhancement_pipeline(resume_file, job_input):
         )
 
         enhanced_sections[section_name] = enhanced_text
+
+  # ✅ ADD THESE HERE (AFTER THE LOOP)
+    print("=== Sections extracted ===")
+    print(sections.keys())
+
+    print("=== Sections enhanced ===")
+    print(enhanced_sections.keys())
+
+    # === Debug: Check keyword coverage in enhanced sections ===
+    print("\n=== Keyword Coverage Debug ===")
+    for section, content in enhanced_sections.items():
+        matched_keywords = [kw for kw in job_keywords if kw.lower() in content.lower()]
+        percent_used = round((len(matched_keywords) / len(job_keywords)) * 100, 2) if job_keywords else 0
+        print(f"{section.capitalize()}: {len(matched_keywords)} / {len(job_keywords)} keywords used ({percent_used}%)")
+        print(f"Used: {matched_keywords}\n")
 
     return enhanced_sections

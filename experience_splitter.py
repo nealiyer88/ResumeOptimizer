@@ -10,15 +10,15 @@ with pdfplumber.open(pdf_path) as pdf:
 
 # === Step 2: Try using section parser ===
 parsed_sections = split_resume_into_sections(resume_text, pdf_path=pdf_path)
-print("\n=== Top-Level Resume Sections Extracted ===")
+#print("\n=== Top-Level Resume Sections Extracted ===")
 for k, v in parsed_sections.items():
-    print(f"\n--- {k.upper()} ---")
-    print(v[:500])  # show first 500 chars to preview content
-experience_text = parsed_sections.get("experience", "")
+    #print(f"\n--- {k.upper()} ---")
+    #print(v[:500])  # show first 500 chars to preview content
+    experience_text = parsed_sections.get("experience", "")
 
 # === Step 3: Fallback if experience section is empty ===
 if not experience_text.strip():
-    print("[Fallback] No 'experience' section found. Trying manual keyword search.")
+    #print("[Fallback] No 'experience' section found. Trying manual keyword search.")
     lower_resume = resume_text.lower()
     start = lower_resume.find("experience")
     experience_text = resume_text[start:] if start != -1 else ""
@@ -125,33 +125,33 @@ if __name__ == "__main__":
     # Remove first chunk if it doesn't include any date (likely a leftover header)
     date_check = re.compile(r"\d{4}")
     if chunks and not date_check.search(chunks[0]):
-        print("[DEBUG] Removing first non-job chunk (likely a header)")
+        #print("[DEBUG] Removing first non-job chunk (likely a header)")
         chunks = chunks[1:]
 
 
-    print("\n=== Raw Job Chunks ===")
+    #print("\n=== Raw Job Chunks ===")
     for i, chunk in enumerate(chunks):
-        print(f"\n--- Job {i+1} ---\n{chunk}\n")
+        #print(f"\n--- Job {i+1} ---\n{chunk}\n")
 
-    if chunks:
-        print("\n=== Parsed Job Fields (First Job Only) ===")
-        parsed = parse_job_entry(chunks[0])
-        for k, v in parsed.items():
-            if isinstance(v, list):
-                print(f"{k}:\n" + "\n".join(v) + "\n")
-            else:
-                print(f"{k}:\n{v}\n")
+        if chunks:
+        #print("\n=== Parsed Job Fields (First Job Only) ===")
+            parsed = parse_job_entry(chunks[0])
+        #for k, v in parsed.items():
+            #if isinstance(v, list):
+                #print(f"{k}:\n" + "\n".join(v) + "\n")
+            #else:
+                #print(f"{k}:\n{v}\n")
 
-    print("\n=== All Parsed Job Entries ===")
-    parsed_jobs = []
-    for i, chunk in enumerate(chunks):
-        parsed = parse_job_entry(chunk)
-        parsed_jobs.append(parsed)
+    #print("\n=== All Parsed Job Entries ===")
+    #parsed_jobs = []
+    #for i, chunk in enumerate(chunks):
+        #parsed = parse_job_entry(chunk)
+        #parsed_jobs.append(parsed)
 
-        print(f"\n--- Job {i + 1} ---")
-        print(f"Company: {parsed['company']}")
-        print(f"Title: {parsed['title']}")
-        print(f"Dates: {parsed['date_range']}")
-        print("Bullets:")
-        for b in parsed["bullets"]:
-            print(f"- {b}")
+        #print(f"\n--- Job {i + 1} ---")
+        #print(f"Company: {parsed['company']}")
+        #print(f"Title: {parsed['title']}")
+        #print(f"Dates: {parsed['date_range']}")
+        #print("Bullets:")
+        #for b in parsed["bullets"]:
+            #print(f"- {b}")

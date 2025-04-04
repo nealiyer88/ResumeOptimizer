@@ -44,12 +44,28 @@ def enhance_section(section_name, resume_section_text, relevant_keywords, job_po
 
 def create_custom_prompt(section_name, resume_section, relevant_keywords, job_posting_text):
     prompts_by_section = {
-        "Professional Summary": "Optimize this Professional Summary by clearly highlighting key career achievements and naturally integrating these keywords:",
-        "Work Experience": "Rewrite these Work Experience bullets, emphasizing measurable outcomes, relevant accomplishments, and integrating the following keywords naturally:",
-        "Skills": "Optimize and clearly categorize this Skills section, naturally integrating the following relevant keywords:",
-        "Education": "Rewrite this Education section to clearly highlight relevant qualifications and credentials, naturally integrating the following keywords:",
-        "Projects": "Rewrite this Projects section to emphasize results, relevant skills, and naturally integrate the following keywords:",
+        "Professional Summary": (
+            "Rewrite this summary as a 2 to 3 sentence elevator pitch. Keep it short, strong, and clearly highlight your most impressive accomplishments and skills. "
+            "Do NOT use bullet points. Integrate the following keywords naturally, only where appropriate:"
+        ),
+        "Work Experience": (
+            "Rewrite these Work Experience bullets by improving clarity, cutting fluff, and emphasizing measurable outcomes. "
+            "Preserve bullet format. Integrate the following relevant keywords naturally where applicable:"
+        ),
+        "Skills": (
+            "Rewrite this Skills section in a clear, concise format. Avoid full sentences or bullets unless already present. "
+            "Categorize and integrate the following relevant keywords naturally:"
+        ),
+        "Education": (
+            "Rewrite this Education section to clearly highlight relevant credentials and institutions. "
+            "Preserve original formatting. Integrate the following relevant keywords only where meaningful:"
+        ),
+        "Projects": (
+            "Rewrite this Projects section to emphasize results, relevant skills, and clearly communicate project value. "
+            "Preserve any formatting already used. Integrate the following keywords naturally:"
+        ),
     }
+
 
     base_prompt = prompts_by_section.get(section_name, f"Enhance the '{section_name}' section of the resume by integrating these keywords naturally and clearly emphasizing professional impact:")
 
@@ -63,8 +79,11 @@ def create_custom_prompt(section_name, resume_section, relevant_keywords, job_po
 
     return prompt
 
-def generate_text_gpt(prompt, model="gpt-3.5-turbo", temperature=0.7, max_tokens=500):
+def generate_text_gpt(prompt, model="gpt-3.5-turbo", temperature=0.7, max_tokens=None):
     try:
+        if max_tokens is None:
+            max_tokens = 300 if "summary" in prompt.lower() else 500
+
         client = setup_openai()
         response = client.chat.completions.create(
             model=model,
@@ -79,3 +98,4 @@ def generate_text_gpt(prompt, model="gpt-3.5-turbo", temperature=0.7, max_tokens
     except Exception as e:
         print(f"❌ Error generating text with GPT: {e}")
         return ""
+

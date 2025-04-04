@@ -1,10 +1,8 @@
 import os
-import pdfplumber
 from dotenv import load_dotenv
 from openai import OpenAI
 
 from experience_splitter import split_experience_section, parse_job_entry
-from parsing_module import split_resume_into_sections
 
 # === Set up OpenAI Client ===
 def setup_openai():
@@ -47,31 +45,31 @@ def enhance_job_entry_with_gpt(job, job_keywords, client, model="gpt-4"):
 # === Format Final Output ===
 def format_enhanced_experience(jobs):
     blocks = []
+    seen_blocks = set()
+
     for job in jobs:
-        blocks.append(
+        block = (
             f"Company: {job['company']}\n"
             f"Title: {job['title']}\n"
             f"Dates: {job['date_range']}\n\n"
             f"{job['bullets']}"
-        )
+        ).strip()
+
+        if block not in seen_blocks:
+            blocks.append(block)
+            seen_blocks.add(block)
+
     return "\n\n".join(blocks)
 
-# === Main Pipeline ===
-def enhance_resume_experience(pdf_path, job_keywords, model="gpt-4"):
-    if not os.path.exists(pdf_path):
-        raise FileNotFoundError(f"Resume not found at: {pdf_path}")
-
-    with pdfplumber.open(pdf_path) as pdf:
-        resume_text = "\n".join(page.extract_text() for page in pdf.pages if page.extract_text())
-
-    sections = split_resume_into_sections(resume_text, pdf_path)
-    experience_text = sections.get("experience", "").strip()
+# === Main Experience Enhancer ===
+def enhance_resume_experience(experience_text, job_keywords, model="gpt-4"):
     if not experience_text:
-        raise ValueError("No experience section found in the resume.")
+        raise ValueError("No experience section text provided.")
 
     chunks = split_experience_section(experience_text)
     parsed_jobs = [parse_job_entry(chunk) for chunk in chunks]
     parsed_jobs = [job for job in parsed_jobs if job['company'] and job['title']]
+
     # ✅ Remove duplicate job entries based on (company, title, date_range)
     seen = set()
     deduped_jobs = []
@@ -81,7 +79,6 @@ def enhance_resume_experience(pdf_path, job_keywords, model="gpt-4"):
             seen.add(job_id)
             deduped_jobs.append(job)
     parsed_jobs = deduped_jobs
-
 
     client = setup_openai()
     enhanced_jobs = []
@@ -99,8 +96,12 @@ def enhance_resume_experience(pdf_path, job_keywords, model="gpt-4"):
 
 # === Entry Point for Manual Testing ===
 if __name__ == "__main__":
-    job_keywords = ["SQL", "Python", "Power BI", "budget forecasting", "reporting automation", "workforce analytics"]
+    from parsing_module import extract_text_pdfminer, split_resume_into_sections
     pdf_path = "docs/sample_resume.pdf"
-    output = enhance_resume_experience(pdf_path, job_keywords)
+    resume_text = extract_text_pdfminer(pdf_path)
+    sections = split_resume_into_sections(resume_text, pdf_path)
+    experience = sections.get("experience", "")
+    job_keywords = ["SQL", "Python", "Power BI", "budget forecasting", "reporting automation", "workforce analytics"]
+    output = enhance_resume_experience(experience, job_keywords)
     print("\n=== FINAL ENHANCED EXPERIENCE SECTION ===\n")
     print(output)
