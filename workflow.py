@@ -15,7 +15,6 @@ from parsing_module import (
 from llm_utils import enhance_section, filter_relevant_keywords
 from llm_enhancer import enhance_resume_experience
 
-
 def extract_text_from_url(url):
     try:
         response = requests.get(url)
@@ -31,7 +30,6 @@ def extract_text_from_url(url):
         print(f"Error reading job posting from URL: {e}")
         return ""
 
-
 def process_resume(file_path):
     ext = os.path.splitext(file_path)[1].lower()
     if ext == ".pdf":
@@ -43,13 +41,11 @@ def process_resume(file_path):
     else:
         raise ValueError("Unsupported file format for resume.")
 
-
 def process_job_posting(input_text_or_url):
     if input_text_or_url.startswith("http"):
         return extract_text_from_url(input_text_or_url)
     else:
         return input_text_or_url
-
 
 def run_enhancement_pipeline(resume_file, job_input):
     resume_text = process_resume(resume_file)
@@ -60,15 +56,18 @@ def run_enhancement_pipeline(resume_file, job_input):
     job_keywords = extract_keywords(job_text)
 
     match_percentage = calculate_keyword_match(resume_keywords, job_keywords)
-    print(f"[🔍] Resume–Job Keyword Match: {match_percentage:.2f}%")
+    print(f"[🔍] Resume–Job Keyword Match: {round(match_percentage, 2)}%")
+
     enhanced_sections = {}
 
     # Try to enhance 'experience' using the special enhancer
     if "experience" in sections:
         try:
             print("[⚙️] Enhancing 'experience' section using LLM enhancer...")
-            enhanced_experience = enhance_resume_experience(sections["experience"], list(job_keywords))
-            enhanced_sections["experience"] = enhanced_experience
+            print(">>>> RAW EXPERIENCE TEXT >>>>")
+            print(sections["experience"][:1000])  # Print first 1000 chars for sanity
+            enhanced_experience = enhance_resume_experience(resume_text, list(job_keywords))
+            enhanced_sections.update(enhanced_experience)
             print("[✅] Experience section enhanced with LLM Enhancer.\n")
         except Exception as e:
             print(f"[⚠️] LLM experience enhancement failed. Falling back to default logic.\n{e}")
@@ -97,7 +96,7 @@ def run_enhancement_pipeline(resume_file, job_input):
 
         enhanced_sections[section_name] = enhanced_text
 
-  
+    # ✅ ADD THESE HERE (AFTER THE LOOP)
     print("=== Sections extracted ===")
     print(sections.keys())
 

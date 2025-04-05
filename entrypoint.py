@@ -54,8 +54,14 @@ Must possess a bachelor’s degree in STEM or a business-related field. """
 
 print("\n=== FINAL ENHANCED RESUME ===\n")
 
-section_order = ["summary", "experience", "skills", "education", "certifications", "projects", "other"]
-for name in section_order:
-    if name in enhanced:
-        print(f"\n--- {name.capitalize()} ---\n")
-        print(enhanced[name].strip())
+section_order = [
+    "summary", "experience", "skills", "education", "certifications", "projects", "awards", "publications"
+]
+
+for section in section_order:
+    content = enhanced.get(section)
+    if content:
+        print(f"--- {section.capitalize()} ---\n")
+        print(content.strip())
+        print("\n")
+

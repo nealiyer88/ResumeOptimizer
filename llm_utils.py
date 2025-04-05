@@ -40,7 +40,18 @@ def filter_relevant_keywords(resume_keywords, job_keywords, job_description, mod
 # Enhanced Logic for Section Optimization
 def enhance_section(section_name, resume_section_text, relevant_keywords, job_posting_text, model="gpt-3.5-turbo"):
     prompt = create_custom_prompt(section_name, resume_section_text, relevant_keywords, job_posting_text)
-    return generate_text_gpt(prompt, model)
+    response = generate_text_gpt(prompt, model)
+
+    # ✅ Post-process summary to strip any bullets if GPT added them
+    if section_name.lower() == "summary":
+        response = "\n".join(
+            line for line in response.splitlines()
+            if not line.strip().startswith(("-", "•", "*"))
+        )
+    
+    return response.strip()
+
+
 
 def create_custom_prompt(section_name, resume_section, relevant_keywords, job_posting_text):
     prompts_by_section = {
