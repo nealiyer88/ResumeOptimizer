@@ -191,7 +191,7 @@ Return ONLY the enhanced bullets. Keep formatting consistent.
 # Returns a new job dict with the same title/company/date, but enhanced bullets
 def enhance_experience_job(
     job: dict,
-    missing_keywords: List[str],
+    filtered_keywords: List[str],
     job_posting: str,
     original_bullet_count: int  # 👈 Add this!
 ) -> dict:
@@ -214,7 +214,7 @@ def enhance_experience_job(
 
     prompt = build_experience_prompt(
         bullets=bullets,
-        missing_keywords=missing_keywords,
+        filtered_keywords=filtered_keywords,
         job_posting=job_posting,
     )
 
@@ -250,7 +250,7 @@ def enhance_experience_job(
         print(f"[Experience Enhancement Error] {e}")
         return job  # fallback to original
 
-def build_projects_prompt(projects_text, missing_keywords: list) -> str:
+def build_projects_prompt(projects_text, filtered_keywords: list) -> str:
     if isinstance(projects_text, dict):
         projects_text = projects_text.get("text", "")
     elif isinstance(projects_text, list):
@@ -280,7 +280,7 @@ The original content is below:
 - Make titles visually distinct by writing them in all caps
 - Combine empty or fragmented lines into concise bullets.
 - Eliminate duplicate or redundant phrasing.
-- Integrate these missing keywords naturally if relevant: {", ".join(missing_keywords)}
+- Integrate these filtered keywords naturally if relevant: {", ".join(filtered_keywords)}
 - DO NOT invent new projects or accomplishments.
 - Total project section length must be the same or **shorter** than the original.
 - Format bullets clearly and consistently. No empty lines or full paragraphs.
@@ -288,8 +288,8 @@ The original content is below:
 Return only the improved Projects section — no section header, no explanations.
 """.strip()
 
-def enhance_projects_with_gpt(projects_text, missing_keywords: list) -> str:
-    prompt = build_projects_prompt(projects_text, missing_keywords)
+def enhance_projects_with_gpt(projects_text, filtered_keywords: list) -> str:
+    prompt = build_projects_prompt(projects_text, filtered_keywords)
     try:
         response = client.chat.completions.create(
             model="gpt-4",
