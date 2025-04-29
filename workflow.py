@@ -78,7 +78,7 @@ def run_resume_enhancement_pipeline(resume_text: str, job_posting: str) -> tuple
         projects_text = str(projects_text)
 
     try:
-        enhanced_projects = enhance_projects_with_gpt(projects_text, pre_match["missing_keywords"])
+        enhanced_projects = enhance_projects_with_gpt(projects_text, gpt_filtered_keywords)
     except Exception as e:
         print("\n🛑 ERROR: Projects enhancement failed")
         print(e)
@@ -99,14 +99,14 @@ def run_resume_enhancement_pipeline(resume_text: str, job_posting: str) -> tuple
 
     # Step 4: Enhance each resume section
     try:
-        enhanced_summary = enhance_summary_with_gpt(summary_text, pre_match["missing_keywords"])
+        enhanced_summary = enhance_summary_with_gpt(summary_text, semantic_filtered_keywords)
     except Exception as e:
         print("\n🛑 ERROR: Summary enhancement failed")
         print(e)
         raise
 
     try:
-        enhanced_skills = enhance_skills_with_gpt(skills_text, pre_match["missing_keywords"])
+        enhanced_skills = enhance_skills_with_gpt(skills_text, semantic_filtered_keywords)
     except Exception as e:
         print("\n🛑 ERROR: Skills enhancement failed")
         print(e)
@@ -118,7 +118,7 @@ def run_resume_enhancement_pipeline(resume_text: str, job_posting: str) -> tuple
             original_bullet_count = len(job.get("bullets", []))
             enhanced_job = enhance_experience_job(
                 job,
-                pre_match["missing_keywords"],
+                semantic_filtered_keywords,
                 job_posting,
                 original_bullet_count
             )
