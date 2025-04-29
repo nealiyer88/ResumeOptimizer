@@ -11,21 +11,21 @@ from keyword_matcher import extract_keywords, filter_relevant_keywords
 load_dotenv()
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
-def enhance_summary_with_gpt(summary_text: str, missing_keywords: list) -> str:
+def enhance_summary_with_gpt(summary_text: str, filtered_keywords: list) -> str:
     """
     Enhance the 'summary' section of a resume using GPT-4,
-    by naturally incorporating missing job description keywords.
+    by naturally incorporating filtered job description keywords.
     """
     prompt = f"""
 You are enhancing the *Professional Summary* section of a resume.
 
 🎯 Your goal:
 - Keep it **factual**, **concise**, and **punchy** — ***MAX 2 Sentences***
-- Make it **impactful and succinct** — similar to a concise personal elevator pitch that can be read in under 10 seconds.
-- Do **not fabricate** degrees, tools, or job history that aren't present in the resume
-- Avoid any phrasing that implies lack of expertise or experience unless explicitly stated in the resume
-  (e.g., “entry-level”, “beginner”, “junior”)
-- Focus on integrating missing *tools, certifications, or domain expertise* only if appropriate
+- Make it **impactful and succinct** — similar to a concise personal elevator pitch that can be read in under 10 seconds
+- Do **not fabricate** degrees, tools, job history, industries, or domains that aren't clearly present in the resume
+- ! If a keyword is **not clearly supported by the resume**, **OMIT it** — **do not guess or generalize**
+- Avoid phrasing that implies lack of expertise (e.g., "entry-level", "junior", "beginner")
+- Focus only on integrating missing *tools, certifications, or domain expertise* if appropriate
 - Keep tone professional, clear, and confident
 - **Avoid redundancy**
 - DO NOT fabricate achievements or job titles
@@ -37,8 +37,8 @@ You are enhancing the *Professional Summary* section of a resume.
 
 ---
 
-🧠 Missing keywords to integrate (if appropriate):
-{", ".join(missing_keywords)}
+🧠 Filtered keywords to integrate (if appropriate):
+{", ".join(filtered_keywords)}
 
 ---
 
@@ -80,7 +80,7 @@ def detect_skills_format(skills_text: str | list | dict) -> str:
     else:
         return "unknown"
 
-def build_skills_prompt(skills_text, missing_keywords: list, format_type: str) -> str:
+def build_skills_prompt(skills_text, filtered_keywords: list, format_type: str) -> str:
     if isinstance(skills_text, dict):
         skills_text = skills_text.get("text", "")  # fallback if some bug passed it in wrapped
     elif not isinstance(skills_text, str):
@@ -105,26 +105,27 @@ def build_skills_prompt(skills_text, missing_keywords: list, format_type: str) -
     {skills_text.strip()}
     ---
 
-    Below is a list of missing keywords from the job description:
-    {", ".join(missing_keywords)}
+    Below is a list of filtered keywords from the job description:
+    {", ".join(filtered_keywords)}
 
     🎯 Your task:
-    - Naturally incorporate as many relevant missing keywords as possible.
+    - Naturally incorporate as many relevant filtered keywords as possible.
     - Only include hard skills (tools, platforms, certifications, or directly measurable capabilities).
+    - ❗️ If a keyword is not clearly supported by the resume, **OMIT it**. Do not guess or assume expertise.
     - If the existing section includes soft skills as a subcategory, only add soft skills to that portion.
-    - Avoid fabricating new skills unless they are *clearly implied* by the original.
+    - Avoid fabricating new skills unless they are *clearly implied* by the original resume content.
     - DO NOT repeat or re-list skills already present.
-    - **If the skills section is organized by category, rename the category headers to align with the key themes and terminology of the job description.**
+    - If the skills section is organized by category, rename the category headers to align with the key themes and terminology of the job description.
     - {format_instruction}
 
     Return only the final enhanced skills section. No explanations.
-        """.strip()
+    """.strip()
 
     return prompt
 
-def enhance_skills_with_gpt(skills_text: str, missing_keywords: list) -> str:
+def enhance_skills_with_gpt(skills_text: str, filtered_keywords: list) -> str:
     format_type = detect_skills_format(skills_text)
-    prompt = build_skills_prompt(skills_text, missing_keywords, format_type)
+    prompt = build_skills_prompt(skills_text, filtered_keywords, format_type)
 
     try:
         response = client.chat.completions.create(
@@ -142,14 +143,14 @@ def enhance_skills_with_gpt(skills_text: str, missing_keywords: list) -> str:
 # Embeds the original bullets
 # Injects the missing keywords
 # Includes the job description for tone
-def build_experience_prompt(bullets: List[str], missing_keywords: List[str], job_posting: str) -> str:
+def build_experience_prompt(bullets: List[str], filtered_keywords: List[str], job_posting: str) -> str:
     """
     Build a GPT prompt to enhance a single job's bullet points.
     - Incorporates relevant keywords
     - Aligns tone and focus with the target job posting
     """
     bullets_text = "\n".join(f"- {b}" for b in bullets)
-    keyword_str = ", ".join(missing_keywords)
+    keyword_str = ", ".join(filtered_keywords)
 
     prompt = f"""
 You are enhancing the bullet points of a single job from a professional resume.
@@ -159,32 +160,28 @@ You are enhancing the bullet points of a single job from a professional resume.
 {bullets_text}
 ---
 
-📋 Relevant but missing keywords from the job posting:
+📋 Relevant but filtered keywords from the job posting:
 {keyword_str}
 
 💼 Target Job Posting (for tone and relevance alignment):
 \"\"\"{job_posting.strip()}\"\"\"
 
 🎯 Your task:
-You are enhancing the bullet points of a single job from a professional resume.
-
-- Rewrite each bullet to improve clarity, strength, and relevance.
-- Integrate missing keywords naturally. No keyword stuffing.
-- Match tone and terminology to the job posting (role, function, tools).
-- Emphasize transferable accomplishments backed by the resume — not invented.
-- Use 1 bullet per line. Combine similar ideas when possible.
-- Avoid filler phrases: “responsible for”, “worked on”, etc.
+- Rewrite bullets to improve clarity, strength, and relevance.
+- ❗ Only use keywords that are clearly supported by the job content — omit if unsure.
+- Emphasize accomplishments that are backed by the resume — do not invent.
+- Use 1 bullet per line. Combine ideas when appropriate.
+- Avoid filler like “responsible for”, “worked on”, etc.
 
 📌 Bullet Rules:
-- If the original job has <4 bullets, you may add 1–2 concise bullets only if clearly supported by the resume/JD.
-- If there are >6 bullets, trim to the best 4–6 lines. Prioritize impact and keyword relevance.
-- If job is short in length or early-career, prefer consolidating and limiting bullets to 3-4 at most.
-- **Do not fabricate job titles, results, or accomplishments.**
-- Highlight quantifiable impact if present — but do not invent numbers.
+- If original had <4 bullets, you may add 1-2 short bullets if justified.
+- If >6 bullets, trim to the best 4-6 lines.
+- If job is early-career, prefer 3-4 bullets max.
+- DO NOT fabricate industries, job titles, or results.
+- Do not invent metrics. Only include if present in resume or implied.
 
 Return ONLY the enhanced bullets. Keep formatting consistent.
-
-    """.strip()
+""".strip()
 
     return prompt
 

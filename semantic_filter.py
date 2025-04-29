@@ -36,7 +36,7 @@ def compute_cosine_similarity(vec1: List[float], vec2: List[float]) -> float:
 def filter_keywords_by_semantic_similarity(
     resume_text: str,
     keywords: List[str],
-    threshold: float = 0.75
+    threshold: float = 0.85
 ) -> List[str]:
     """
     Filters job keywords by semantic similarity against the resume text.

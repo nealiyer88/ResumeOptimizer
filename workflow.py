@@ -23,9 +23,10 @@ def run_resume_enhancement_pipeline(resume_text: str, job_posting: str) -> tuple
         
         # Extract and filter job description keywords
     raw_keywords = extract_keywords(job_posting)
-    filtered_keywords = filter_relevant_keywords(list(raw_keywords))
-    filtered_keywords = filter_keywords_by_semantic_similarity(resume_text, filtered_keywords)
-    classified_keywords = classify_keywords(filtered_keywords)
+    gpt_filtered_keywords = filter_relevant_keywords(list(raw_keywords))
+    semantic_filtered_keywords = filter_keywords_by_semantic_similarity(resume_text, gpt_filtered_keywords)
+    classified_keywords = classify_keywords(semantic_filtered_keywords)
+
 
         # Compute pre-enhancement keyword match and score
     pre_match = compute_keyword_match(resume_text, job_posting)

@@ -165,9 +165,6 @@ with col1:
                     st.session_state.contact_info[key] = value
             
             st.success("Resume uploaded successfully!")
-
-            if st.session_state.resume_text:
-                st.text_area("Extracted Resume Text", st.session_state.resume_text, height=300)
     
     else:  # Paste Text option
         st.session_state.resume_text = st.text_area(

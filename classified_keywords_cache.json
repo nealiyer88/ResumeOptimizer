@@ -210,5 +210,16 @@
   "tactical": "soft_skill",
   "technologie": "tool_platform",
   "tesda": "certification_license",
-  "tester": "tool_platform"
+  "tester": "tool_platform",
+  "adhere": "soft_skill",
+  "annual": "domain_knowledge",
+  "biotech": "domain_knowledge",
+  "budget": "domain_knowledge",
+  "completion": "domain_knowledge",
+  "coordination": "soft_skill",
+  "creation": "soft_skill",
+  "detail": "domain_knowledge",
+  "director": "domain_knowledge",
+  "efficiency": "soft_skill",
+  "pharmaceutical": "domain_knowledge"
 }
