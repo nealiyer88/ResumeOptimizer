@@ -10,6 +10,7 @@ from llm_enhancer import (
     enhance_experience_job,
     enhance_projects_with_gpt
 )
+from semantic_filter import filter_keywords_by_semantic_similarity
 from resume_formatter import format_experience_section, assemble_resume
 
 load_dotenv()
@@ -23,6 +24,7 @@ def run_resume_enhancement_pipeline(resume_text: str, job_posting: str) -> tuple
         # Extract and filter job description keywords
     raw_keywords = extract_keywords(job_posting)
     filtered_keywords = filter_relevant_keywords(list(raw_keywords))
+    filtered_keywords = filter_keywords_by_semantic_similarity(resume_text, filtered_keywords)
     classified_keywords = classify_keywords(filtered_keywords)
 
         # Compute pre-enhancement keyword match and score
