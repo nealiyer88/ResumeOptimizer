@@ -1,6 +1,7 @@
 # === resume_formatter.py ===
 
 from typing import List
+import re
 
 
 def format_experience_section(jobs: List[dict]) -> str:
@@ -79,10 +80,11 @@ def assemble_resume(summary: str, skills: str, experience: str, education: str =
         lines.append(education.strip())
         lines.append("")
 
-    if projects.strip():
+    if projects.strip() and not re.search(r"no (projects|relevant projects|projects listed)", projects.strip(), re.I):
         lines.append("PROJECTS")
         lines.append("--------")
         lines.append(projects.strip())
         lines.append("")
 
     return "\n".join(lines).strip()
+

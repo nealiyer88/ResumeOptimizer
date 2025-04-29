@@ -6,6 +6,9 @@ import tempfile
 import os
 from resume_export import generate_pdf, generate_docx, get_available_styles
 import re
+import io
+from PyPDF2 import PdfReader
+from docx import Document
 
 def extract_contact_info(resume_text):
     """Extract basic contact information from resume text."""
@@ -129,38 +132,42 @@ with col1:
     )
     
     if resume_option == "Upload PDF":
-        uploaded_file = st.file_uploader("Upload your resume (PDF)", type=['pdf'])
+        uploaded_file = st.file_uploader(
+            "Upload your resume (PDF, DOCX, or TXT)",
+            type=["pdf", "docx", "txt"]
+        )
         if uploaded_file is not None:
-            # Save the uploaded file temporarily
-            with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as tmp_file:
-                tmp_file.write(uploaded_file.getvalue())
-                tmp_path = tmp_file.name
+            file_type = uploaded_file.type
+
+            if uploaded_file.name.endswith(".pdf"):
+                # Extract text from PDF
+                pdf_reader = PdfReader(uploaded_file)
+                for page in pdf_reader.pages:
+                    st.session_state.resume_text += page.extract_text() or ""
+            elif uploaded_file.name.endswith(".docx"):
+                # Extract text from DOCX
+                doc = Document(uploaded_file)
+                for para in doc.paragraphs:
+                    st.session_state.resume_text += para.text + "\n"
+            elif uploaded_file.name.endswith(".txt"):
+                # Extract text from TXT
+                stringio = io.StringIO(uploaded_file.getvalue().decode("utf-8"))
+                st.session_state.resume_text = stringio.read()
+            else:
+                st.error("Unsupported file type.")
             
-            # Call the backend to extract text
-            try:
-                with open(tmp_path, 'rb') as f:
-                    files = {'file': f}
-                    response = requests.post('http://localhost:8000/extract-text', files=files)
-                    if response.status_code == 200:
-                        st.session_state.resume_text = response.json()['html_resume']
-                        
-                        # Extract contact info from the resume text
-                        detected_contact_info = extract_contact_info(st.session_state.resume_text)
-                        
-                        # Update session state with detected info (only if empty)
-                        for key, value in detected_contact_info.items():
-                            if value and not st.session_state.contact_info.get(key):
-                                st.session_state.contact_info[key] = value
-                            
-                        
-                        st.success("Resume uploaded successfully!")
-                    else:
-                        st.error("Failed to process the PDF file.")
-            except Exception as e:
-                st.error(f"Error processing PDF: {str(e)}")
-            finally:
-                # Clean up the temporary file
-                os.unlink(tmp_path)
+            # Extract contact info from the resume text
+            detected_contact_info = extract_contact_info(st.session_state.resume_text)
+            
+            # Update session state with detected info (only if empty)
+            for key, value in detected_contact_info.items():
+                if value and not st.session_state.contact_info.get(key):
+                    st.session_state.contact_info[key] = value
+            
+            st.success("Resume uploaded successfully!")
+
+            if st.session_state.resume_text:
+                st.text_area("Extracted Resume Text", st.session_state.resume_text, height=300)
     
     else:  # Paste Text option
         st.session_state.resume_text = st.text_area(

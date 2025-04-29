@@ -154,11 +154,15 @@ ATS_TEMPLATE = """
             font-style: normal;
         }
         .project-title {
-            font-weight: bold !important;
-            font-size: 12px;  /* match bullet size */
+            all: unset;
+            font-weight: bold;
+            font-size: 12px !important;
+            font-family: inherit;
+            display: block;
             margin-top: 6px;
             margin-bottom: 2px;
         }
+
 
         .section {
             margin-bottom: 15px;
@@ -255,11 +259,15 @@ MODERN_TEMPLATE = """
             font-style: italic;
         }
         .project-title {
-            font-weight: bold !important;
-            font-size: 12px;
+            all: unset;
+            font-weight: bold;
+            font-size: 12px !important;
+            font-family: inherit;
+            display: block;
             margin-top: 6px;
             margin-bottom: 2px;
-            color: #2c3e50;  /* or match your bullet font color */
+        }
+
         }
 
         .section {
@@ -370,12 +378,15 @@ PROFESSIONAL_TEMPLATE = """
         }
 
         .project-title {
-            font-weight: bold !important;
-            font-size: 12px;
+            all: unset;
+            font-weight: bold;
+            font-size: 12px !important;
+            font-family: inherit;
+            display: block;
             margin-top: 6px;
             margin-bottom: 2px;
-            font-family: Georgia, 'Times New Roman', Times, serif;
         }
+
 
         .section {
             margin-bottom: 18px;
