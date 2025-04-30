@@ -17,33 +17,36 @@ def enhance_summary_with_gpt(summary_text: str, filtered_keywords: list) -> str:
     by naturally incorporating filtered job description keywords.
     """
     prompt = f"""
-You are enhancing the *Professional Summary* section of a resume.
+    You are enhancing the *Professional Summary* section of a resume.
 
-🎯 Your goal:
-- Keep it **factual**, **concise**, and **punchy** — ***MAX 2 Sentences***
-- Make it **impactful and succinct** — similar to a concise personal elevator pitch that can be read in under 10 seconds
-- Do **not fabricate** degrees, tools, job history, industries, or domains that aren't clearly present in the resume
-- ! If a keyword is **not clearly supported by the resume**, **OMIT it** — **do not guess or generalize**
-- Avoid phrasing that implies lack of expertise (e.g., "entry-level", "junior", "beginner")
-- Focus only on integrating missing *tools, certifications, or domain expertise* if appropriate
-- Keep tone professional, clear, and confident
-- **Avoid redundancy**
-- DO NOT fabricate achievements or job titles
+    🎯 Your goal:
+    - Keep it **factual**, **concise**, and **punchy** — ***MAX 2 Sentences***
+    - Make it **impactful and succinct** — similar to a concise personal elevator pitch that can be read in under 10 seconds
+    - Do **not fabricate** degrees, tools, job history, industries, or domains that aren't clearly present in the resume
+    - ! If a keyword is **not clearly supported by the resume**, **OMIT it** — **do not guess or generalize**
+    - Do **not infer industries or domains** (e.g., "banking", "biotech") unless mentioned or strongly implied
+    - Avoid phrasing that implies lack of expertise (e.g., "entry-level", "junior", "beginner")
+    - Focus only on integrating missing *tools, certifications, or domain expertise* if appropriate
+    - Keep tone professional, clear, and confident
+    - **Avoid redundancy and vague phrasing**
+    - DO NOT fabricate achievements or job titles
+    -❗Do not introduce or modify job titles. Use only titles explicitly found in the resume (e.g., Analyst, Manager, Senior Manager).
 
----
 
-✍️ Current Summary (may be blank):
-{summary_text.strip()}
+    ---
 
----
+    ✍️ Current Summary (may be blank):
+    {summary_text.strip()}
 
-🧠 Filtered keywords to integrate (if appropriate):
-{", ".join(filtered_keywords)}
+    ---
 
----
+    🧠 Filtered keywords to integrate (if appropriate):
+    {", ".join(filtered_keywords)}
 
-Return ONLY the improved summary. No bullet points. No “Summary:” label. No extra formatting.
-"""
+    ---
+
+    Return ONLY the improved summary. No bullet points. No “Summary:” label. No extra formatting.
+    """
 
     try:
         response = client.chat.completions.create(
@@ -105,21 +108,23 @@ def build_skills_prompt(skills_text, filtered_keywords: list, format_type: str) 
     {skills_text.strip()}
     ---
 
-    Below is a list of filtered keywords from the job description:
+    🧠 Filtered keywords from the job description:
     {", ".join(filtered_keywords)}
 
     🎯 Your task:
     - Naturally incorporate as many relevant filtered keywords as possible.
-    - Only include hard skills (tools, platforms, certifications, or directly measurable capabilities).
-    - ❗️ If a keyword is not clearly supported by the resume, **OMIT it**. Do not guess or assume expertise.
-    - If the existing section includes soft skills as a subcategory, only add soft skills to that portion.
-    - Avoid fabricating new skills unless they are *clearly implied* by the original resume content.
-    - DO NOT repeat or re-list skills already present.
-    - If the skills section is organized by category, rename the category headers to align with the key themes and terminology of the job description.
+    - Only include hard skills: tools, platforms, certifications, or directly measurable capabilities.
+    - ❗ Omit any keyword not clearly supported by the resume — do NOT guess, infer, or generalize.
+    - ❗ Do not infer tools or platforms based on job titles or job descriptions alone.
+    - If soft skills are present as a category, only enhance that section with relevant soft skills.
+    - Do not fabricate new skills unless they are clearly implied by the original resume.
+    - Do not repeat or re-list skills already present.
+    - If skills are grouped by theme or category, align group headers with the job description terminology.
     - {format_instruction}
 
-    Return only the final enhanced skills section. No explanations.
+    Return ONLY the enhanced skills section. No explanations, no headers.
     """.strip()
+
 
     return prompt
 
@@ -153,35 +158,37 @@ def build_experience_prompt(bullets: List[str], filtered_keywords: List[str], jo
     keyword_str = ", ".join(filtered_keywords)
 
     prompt = f"""
-You are enhancing the bullet points of a single job from a professional resume.
+    You are enhancing the bullet points of a single job from a professional resume.
 
-📌 Original Bullets:
----
-{bullets_text}
----
+    📌 Original Bullets:
+    ---
+    {bullets_text}
+    ---
 
-📋 Relevant but filtered keywords from the job posting:
-{keyword_str}
+    🧠 Filtered keywords from the job posting:
+    {keyword_str}
 
-💼 Target Job Posting (for tone and relevance alignment):
-\"\"\"{job_posting.strip()}\"\"\"
+    📄 Job Description (for tone and alignment):
+    \"\"\"{job_posting.strip()}\"\"\"
 
-🎯 Your task:
-- Rewrite bullets to improve clarity, strength, and relevance.
-- ❗ Only use keywords that are clearly supported by the job content — omit if unsure.
-- Emphasize accomplishments that are backed by the resume — do not invent.
-- Use 1 bullet per line. Combine ideas when appropriate.
-- Avoid filler like “responsible for”, “worked on”, etc.
+    🎯 Your task:
+    - Rewrite bullets to improve clarity, impact, and relevance.
+    - ❗ Only use keywords clearly supported by the original resume content — omit if unsure.
+    - ❗ Do not infer industries (e.g., banking, biotech), tools, platforms, or achievements that aren’t mentioned or implied.
+    - Emphasize real accomplishments backed by the resume — do not fabricate.
+    - Combine similar ideas. Use one bullet per line.
+    - Avoid vague filler like “responsible for”, “worked on”, etc.
 
-📌 Bullet Rules:
-- If original had <4 bullets, you may add 1-2 short bullets if justified.
-- If >6 bullets, trim to the best 4-6 lines.
-- If job is early-career, prefer 3-4 bullets max.
-- DO NOT fabricate industries, job titles, or results.
-- Do not invent metrics. Only include if present in resume or implied.
+    📌 Bullet Rules:
+    - If original had fewer than 4 bullets, you may add 1–2 short bullets if clearly justified.
+    - If more than 6 bullets, trim to the best 4–6. Prioritize impact and keyword relevance.
+    - If job is early-career or brief, prefer 3–4 bullets max.
+    - DO NOT fabricate titles, results, or industries.
+    - DO NOT invent metrics. Only include if explicitly present or strongly implied.
 
-Return ONLY the enhanced bullets. Keep formatting consistent.
-""".strip()
+    Return ONLY the improved bullet points. One per line. No extra formatting.
+    """.strip()
+
 
     return prompt
 

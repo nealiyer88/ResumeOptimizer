@@ -78,7 +78,11 @@ def run_resume_enhancement_pipeline(resume_text: str, job_posting: str) -> tuple
         projects_text = str(projects_text)
 
     try:
-        enhanced_projects = enhance_projects_with_gpt(projects_text, gpt_filtered_keywords)
+        if projects_text.strip() and len(projects_text.strip().split()) > 10:  # 10+ words = meaningful projects section
+            enhanced_projects = enhance_projects_with_gpt(projects_text, gpt_filtered_keywords)
+        else:
+            enhanced_projects = ""  # No fake projects
+
     except Exception as e:
         print("\n🛑 ERROR: Projects enhancement failed")
         print(e)
