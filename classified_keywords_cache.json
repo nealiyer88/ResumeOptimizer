@@ -244,5 +244,7 @@
   "crypto": "domain_knowledge",
   "fiscal": "domain_knowledge",
   "superset": "tool_platform",
-  "tooling": "tool_platform"
+  "tooling": "tool_platform",
+  "consolidation": "domain_knowledge",
+  "managing": "soft_skill"
 }

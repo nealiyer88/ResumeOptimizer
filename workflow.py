@@ -12,6 +12,8 @@ from llm_enhancer import (
 )
 from semantic_filter import filter_keywords_by_semantic_similarity
 from resume_formatter import format_experience_section, assemble_resume
+from postprocessors import sanitize_summary, sanitize_skills
+
 
 load_dotenv()
 
@@ -104,6 +106,7 @@ def run_resume_enhancement_pipeline(resume_text: str, job_posting: str) -> tuple
     # Step 4: Enhance each resume section
     try:
         enhanced_summary = enhance_summary_with_gpt(summary_text, semantic_filtered_keywords)
+        enhanced_summary = sanitize_summary(enhanced_summary, resume_text)
     except Exception as e:
         print("\n🛑 ERROR: Summary enhancement failed")
         print(e)
@@ -111,6 +114,7 @@ def run_resume_enhancement_pipeline(resume_text: str, job_posting: str) -> tuple
 
     try:
         enhanced_skills = enhance_skills_with_gpt(skills_text, semantic_filtered_keywords)
+        enhanced_skills = sanitize_skills(enhanced_skills, resume_text)
     except Exception as e:
         print("\n🛑 ERROR: Skills enhancement failed")
         print(e)
