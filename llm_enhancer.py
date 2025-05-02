@@ -20,7 +20,7 @@ def enhance_summary_with_gpt(summary_text: str, filtered_keywords: list) -> str:
     You are enhancing the *Professional Summary* section of a resume.
 
     🎯 Your goal:
-    - Keep it **factual**, **concise**, and **punchy** — ***MAX 2 Sentences***
+    - Keep it **factual**, **concise**, and **punchy** — 
     - Make it **impactful and succinct** — similar to a concise personal elevator pitch that can be read in under 10 seconds
     - Do **not fabricate** degrees, tools, job history, industries, or domains that aren't clearly present in the resume
     - ! If a keyword is **not clearly supported by the resume**, **OMIT it** — **do not guess or generalize**
@@ -45,7 +45,12 @@ def enhance_summary_with_gpt(summary_text: str, filtered_keywords: list) -> str:
 
     ---
 
-    Return ONLY the improved summary. No bullet points. No “Summary:” label. No extra formatting.
+    Return ONLY the improved summary.
+
+    It is a hard cap: no more than 2 sentences AND no more than 40 words, total. Do not exceed either.
+
+    No bullet points. No "Summary:" label. No quotes. No formatting. Just plain text.
+
     """
 
     try:

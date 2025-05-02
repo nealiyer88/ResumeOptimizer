@@ -1,9 +1,43 @@
 import re
+from openai import OpenAI
+from sklearn.metrics.pairwise import cosine_similarity
 
-def sanitize_summary(summary_text: str, resume_text: str) -> str:
+client = OpenAI()
+
+def embed_text(text: str, model: str = "text-embedding-ada-002") -> list[float]:
+    response = client.embeddings.create(input=[text], model=model)
+    return response.data[0].embedding
+
+def regenerate_summary_line(original_sentence: str, resume_text: str) -> str:
     """
-    Strip hallucinated domains, industries, and titles from summary if unsupported in resume.
-    No fallback phrases are inserted — keeps it clean, domain-neutral, and production-safe.
+    Use GPT to rewrite a hallucinated summary sentence using only information from the resume.
+    """
+    prompt = f"""
+You are rewriting a summary sentence to align with a professional resume. 
+
+The original sentence may contain claims not supported by the resume. Your job is to rewrite it using only the information clearly supported in the resume. Keep it factual, concise, and professional.
+
+Resume (source of truth):
+\"\"\"
+{resume_text.strip()}
+\"\"\"
+
+Original (possibly hallucinated):
+{original_sentence.strip()}
+
+Rewrite it below (no quotes, no formatting):
+"""
+    response = client.chat.completions.create(
+        model="gpt-4",
+        temperature=0.3,
+        messages=[{"role": "user", "content": prompt}]
+    )
+    return response.choices[0].message.content.strip()
+
+def sanitize_summary(summary_text: str, resume_text: str, threshold: float = 0.82) -> str:
+    """
+    Edit unsupported summary lines instead of deleting them.
+    Uses literal check → semantic match → GPT rewriter fallback.
     """
     if not isinstance(summary_text, str):
         summary_text = str(summary_text)
@@ -11,31 +45,39 @@ def sanitize_summary(summary_text: str, resume_text: str) -> str:
         resume_text = str(resume_text)
 
     resume_lower = resume_text.lower()
-    summary_cleaned = summary_text
+    resume_embedding = embed_text(resume_text)
+    summary_sentences = re.split(r"[.]", summary_text)
 
-    # Find capitalized or multiword phrases (possible hallucinated domains or titles)
-    matches = re.findall(r"\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,3})\b", summary_text)
+    final_summary = []
 
-    for phrase in matches:
-        phrase_lower = phrase.lower()
+    for sent in summary_sentences:
+        sent = sent.strip()
+        if not sent:
+            continue
 
-        # Only strip if phrase is not mentioned in resume at all
-        if phrase_lower not in resume_lower:
-            # Optional: print to logs for monitoring
-            print(f"🧼 Removed unsupported phrase: '{phrase}'")
-            summary_cleaned = summary_cleaned.replace(phrase, "").strip()
+        # ✅ 1. Literal match
+        if sent.lower() in resume_lower:
+            final_summary.append(sent)
+            continue
 
-    # Clean up double spaces or leftover formatting issues
-    summary_cleaned = re.sub(r"\s{2,}", " ", summary_cleaned)
-    summary_cleaned = re.sub(r"\s+\.", ".", summary_cleaned)
+        # ✅ 2. Semantic similarity match
+        sent_embedding = embed_text(sent)
+        sim = cosine_similarity([resume_embedding], [sent_embedding])[0][0]
+        if sim >= threshold:
+            final_summary.append(sent)
+        else:
+            # ✅ 3. Rewrite unsupported sentence with GPT
+            print(f"🧠 Rewriting unsupported summary sentence: '{sent}'")
+            rewritten = regenerate_summary_line(sent, resume_text)
+            if rewritten:
+                final_summary.append(rewritten)
 
-    return summary_cleaned
+    return ". ".join(final_summary).strip() + "."
 
-def sanitize_skills(skills_text: str, resume_text: str) -> str:
+def sanitize_skills(skills_text: str, resume_text: str, threshold: float = 0.82) -> str:
     """
-    Remove hallucinated skills (tools, platforms, domains) from the Skills section
-    if they are not clearly present in the resume.
-    Works across comma-separated, bulleted, or grouped formats.
+    Hybrid cleaner: Remove hallucinated skills using literal check + semantic fallback.
+    Optional if rewrite_skills_from_resume() is used.
     """
     if not isinstance(skills_text, str):
         skills_text = str(skills_text)
@@ -43,9 +85,9 @@ def sanitize_skills(skills_text: str, resume_text: str) -> str:
         resume_text = str(resume_text)
 
     resume_lower = resume_text.lower()
+    resume_embedding = embed_text(resume_text)
     cleaned_skills = []
-    
-    # Normalize delimiters
+
     raw_skills = re.split(r"[•*•\-–,\n]", skills_text)
 
     for skill in raw_skills:
@@ -53,12 +95,55 @@ def sanitize_skills(skills_text: str, resume_text: str) -> str:
         if not skill_clean:
             continue
 
-        # Basic substring check (exact match or key fragment in resume)
         skill_lower = skill_clean.lower()
+
+        # First: literal presence
         if skill_lower in resume_lower:
+            cleaned_skills.append(skill_clean)
+            continue
+
+        # Then: semantic fallback
+        skill_embedding = embed_text(skill_clean)
+        sim = cosine_similarity([resume_embedding], [skill_embedding])[0][0]
+        if sim >= threshold:
             cleaned_skills.append(skill_clean)
         else:
             print(f"🧼 Removed hallucinated skill: '{skill_clean}'")
 
-    # Return comma-separated string
     return ", ".join(cleaned_skills)
+
+def rewrite_skills_from_resume(resume_text: str, filtered_keywords: list[str]) -> str:
+    """
+    Rebuild the Skills section using GPT-4 based on resume truth and job relevance.
+    Includes grouped formatting if logical. Domain-agnostic.
+    """
+    prompt = f"""
+    You are generating the Skills section of a resume using only information from the resume text.
+
+    💡 Your goal:
+    - Group skills by type (e.g., Finance Tools, BI Platforms, Productivity Tools)
+    - Each category should be on its own line
+    - Within each line, separate skills using the "|" (pipe) character
+    - Do NOT return each skill on its own line
+    - Do NOT use bullet points, emojis, or markdown formatting
+    - Do NOT fabricate any tools, platforms, or skills
+    - Use clean headers like 'Finance Tools:' or 'BI Platforms:', not emojis
+
+    Resume (source of truth):
+    \"\"\"
+    {resume_text.strip()}
+    \"\"\"
+
+    Relevant keywords from the job posting:
+    {", ".join(filtered_keywords)}
+
+    Return only the formatted Skills section with no commentary.
+    """
+
+    response = client.chat.completions.create(
+        model="gpt-4",
+        temperature=0.3,
+        messages=[{"role": "user", "content": prompt}]
+    )
+
+    return response.choices[0].message.content.strip()
