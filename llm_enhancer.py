@@ -31,7 +31,9 @@ def enhance_summary_with_gpt(summary_text: str, filtered_keywords: list) -> str:
     - **Avoid redundancy and vague phrasing**
     - DO NOT fabricate achievements or job titles
     -❗Do not introduce or modify job titles. Use only titles explicitly found in the resume (e.g., Analyst, Manager, Senior Manager).
-
+    - Avoid repeating Sentence starters more than once
+    - Sentence 2 should expand on sentence 1 — not duplicate it
+    - Always end summary with single punctuation. No trailing double periods.
 
     ---
 
@@ -163,36 +165,31 @@ def build_experience_prompt(bullets: List[str], filtered_keywords: List[str], jo
     keyword_str = ", ".join(filtered_keywords)
 
     prompt = f"""
-    You are enhancing the bullet points of a single job from a professional resume.
+    You are rewriting the bullet points of a single job from a resume. The original bullets may be vague, redundant, or lack measurable impact.
+
+    🎯 Objective:
+    Rewrite the bullets to be clear, concise, and aligned with professional job descriptions. Use strong verbs, measurable outcomes, and impactful phrasing where possible.
 
     📌 Original Bullets:
-    ---
     {bullets_text}
-    ---
 
-    🧠 Filtered keywords from the job posting:
+    🧠 Filtered Keywords (for guidance):
     {keyword_str}
 
     📄 Job Description (for tone and alignment):
     \"\"\"{job_posting.strip()}\"\"\"
 
-    🎯 Your task:
-    - Rewrite bullets to improve clarity, impact, and relevance.
-    - ❗ Only use keywords clearly supported by the original resume content — omit if unsure.
-    - ❗ Do not infer industries (e.g., banking, biotech), tools, platforms, or achievements that aren’t mentioned or implied.
-    - Emphasize real accomplishments backed by the resume — do not fabricate.
-    - Combine similar ideas. Use one bullet per line.
-    - Avoid vague filler like “responsible for”, “worked on”, etc.
+    🔒 Rules:
+    - Only use keywords that are clearly present or implied in the original bullets.
+    - Do NOT invent metrics, achievements, or tools that aren’t mentioned.
+    - Avoid fluff like "responsible for", "worked on", or "helped with".
+    - Each bullet must stand alone — no continuation lines or soft phrasing.
+    - Use concise, action-driven language.
+    - Limit each bullet to one impactful idea.
 
-    📌 Bullet Rules:
-    - If original had fewer than 4 bullets, you may add 1–2 short bullets if clearly justified.
-    - If more than 6 bullets, trim to the best 4–6. Prioritize impact and keyword relevance.
-    - If job is early-career or brief, prefer 3–4 bullets max.
-    - DO NOT fabricate titles, results, or industries.
-    - DO NOT invent metrics. Only include if explicitly present or strongly implied.
-
-    Return ONLY the improved bullet points. One per line. No extra formatting.
+    Return ONLY the rewritten bullets. One per line. No extra commentary or formatting.
     """.strip()
+
 
 
     return prompt
@@ -243,13 +240,10 @@ def enhance_experience_job(
             if line.strip()
         ]
                 # Enforce bullet limit: Keep at most 6
-        # ✅ Enforce bullet limit: max 2 more than original
-        if len(enhanced_bullets) > original_bullet_count + 2:
-            enhanced_bullets = enhanced_bullets[: original_bullet_count + 2]
+        # Enforce bullet cap: 6 for all jobs, unless original had fewer
+        max_bullets = max(min(original_bullet_count + 2, 6), original_bullet_count)
+        enhanced_bullets = enhanced_bullets[:max_bullets]
 
-        # ✅ Also trim down if it's still longer than 6
-        if len(enhanced_bullets) > 6:
-            enhanced_bullets = enhanced_bullets[:6]
 
         return {
             "title": job["title"],

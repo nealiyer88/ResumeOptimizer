@@ -13,20 +13,37 @@ def regenerate_summary_line(original_sentence: str, resume_text: str) -> str:
     Use GPT to rewrite a hallucinated summary sentence using only information from the resume.
     """
     prompt = f"""
-You are rewriting a summary sentence to align with a professional resume. 
+    You are rewriting a single summary sentence from a resume. The original sentence may include hallucinated tools, technologies, or traits. Your job is to rewrite it using only content clearly supported by the resume.
 
-The original sentence may contain claims not supported by the resume. Your job is to rewrite it using only the information clearly supported in the resume. Keep it factual, concise, and professional.
+    🎯 Rules:
+    - DO NOT include any tools, software, platforms, or technologies — those belong in the Skills section, not Summary
+    - DO NOT include soft skill fluff like “communication skills” or “presentation”
+    - Focus only on measurable impact, capabilities, or resume-backed accomplishments
+    - Maintain a professional, recruiter-appropriate tone
+    - Rewrite as a tight summary bullet (1 sentence max if possible)
+    - Avoid repeating sentence starters more than once
+    - Sentence 2 should expand on sentence 1 — not duplicate it
+    - Always end summary with single punctuation. No trailing double periods.
 
-Resume (source of truth):
-\"\"\"
-{resume_text.strip()}
-\"\"\"
+    📏 Constraint:
+        It is a hard cap: maximum 40 words. Do not exceed.
 
-Original (possibly hallucinated):
-{original_sentence.strip()}
+    ---
 
-Rewrite it below (no quotes, no formatting):
-"""
+    Resume (source of truth):
+    \"\"\"
+    {resume_text.strip()}
+    \"\"\"
+
+    Original sentence (possibly hallucinated):
+    {original_sentence.strip()}
+
+    ---
+
+    Return only the rewritten version.
+    No quotes. No labels. No formatting.
+    """
+
     response = client.chat.completions.create(
         model="gpt-4",
         temperature=0.3,
