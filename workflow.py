@@ -12,7 +12,7 @@ from llm_enhancer import (
 )
 from semantic_filter import filter_keywords_by_semantic_similarity
 from resume_formatter import format_experience_section, assemble_resume
-from postprocessors import sanitize_summary, rewrite_skills_from_resume
+from postprocessors import sanitize_summary, rewrite_skills_from_resume, filter_and_rewrite_bullets
 
 
 load_dotenv()
@@ -130,11 +130,26 @@ def run_resume_enhancement_pipeline(resume_text: str, job_posting: str) -> tuple
                 job_posting,
                 original_bullet_count
             )
+
+            # Clean or rewrite bullets post-enhancement
+            cleaned_bullets, used_fallback = filter_and_rewrite_bullets(
+                bullets=enhanced_job["bullets"],
+                resume_text=resume_text
+            )
+
+            if used_fallback:
+                print(f"⚠️  Fallback triggered for job: {job.get('title', '?')} @ {job.get('company', '?')}")
+
+            enhanced_job["bullets"] = cleaned_bullets
+            enhanced_job["rewrite_fallback"] = used_fallback
+
             enhanced_jobs.append(enhanced_job)
+
     except Exception as e:
         print("\n🛑 ERROR: Experience enhancement failed")
         print(e)
         raise
+
 
             # === Build header block from contact_info ===
     header_lines = []

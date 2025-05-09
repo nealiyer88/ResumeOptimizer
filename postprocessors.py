@@ -1,12 +1,32 @@
 import re
 from openai import OpenAI
 from sklearn.metrics.pairwise import cosine_similarity
+from pathlib import Path
+import json
 
 client = OpenAI()
 
 def embed_text(text: str, model: str = "text-embedding-ada-002") -> list[float]:
     response = client.embeddings.create(input=[text], model=model)
     return response.data[0].embedding
+
+REFERENCE_BULLETS_PATH = Path("reference_bullets.json")
+
+def load_reference_bullets(path: Path = REFERENCE_BULLETS_PATH) -> list[str]:
+    """
+    Loads high-quality reference bullets from external JSON.
+    """
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            bullets = json.load(f)
+            return [b.strip() for b in bullets if b.strip()]
+    except Exception as e:
+        print(f"[ERROR] Failed to load reference bullets: {e}")
+        return []
+    
+REFERENCE_BULLETS = load_reference_bullets()
+REFERENCE_EMBEDDINGS = [embed_text(bullet) for bullet in REFERENCE_BULLETS]
+
 
 def regenerate_summary_line(original_sentence: str, resume_text: str) -> str:
     """
@@ -164,3 +184,123 @@ def rewrite_skills_from_resume(resume_text: str, filtered_keywords: list[str]) -
     )
 
     return response.choices[0].message.content.strip()
+
+def evaluate_bullet_quality(bullet: str, threshold: float = 0.76) -> dict:
+    """
+    Compares a bullet to reference bullets using embedding similarity.
+    Returns a quality score and tags like 'low_quality' if it falls below the threshold.
+    """
+    bullet = bullet.strip()
+    if not bullet:
+        return {"score": 0.0, "tags": ["empty"]}
+
+    try:
+        bullet_vec = embed_text(bullet)
+        sims = [cosine_similarity([bullet_vec], [ref_vec])[0][0] for ref_vec in REFERENCE_EMBEDDINGS]
+        max_sim = max(sims)
+
+        tags = []
+        if max_sim < threshold:
+            tags.append("low_quality")
+
+        return {"score": round(max_sim, 3), "tags": tags}
+
+    except Exception as e:
+        print(f"[Embedding Error] Could not score bullet: '{bullet}'\n{e}")
+        return {"score": 0.0, "tags": ["embedding_error"]}
+
+
+def rewrite_bullet_with_gpt(original_bullet: str, resume_text: str = "", score: float = None) -> str:
+    """
+    Uses GPT to rewrite a weak resume bullet into a clearer, stronger format.
+    Optionally uses the full resume as context.
+    """
+    if score is not None:
+        print(f"🛠 Rewriting bullet due to low score ({score:.2f}): {original_bullet.strip()}")
+
+    context = f"\nResume context for reference:\n{resume_text.strip()}" if resume_text else ""
+
+    prompt = f"""
+    You are rewriting a resume bullet point to be clearer, more impactful, and ATS-optimized.
+
+    🎯 GOAL:
+    - Improve clarity, tone, and structure
+    - Begin with a strong action verb
+    - Focus on a concrete action and measurable result if possible
+    - Maintain professional tone aligned with business or technical roles
+    - Optimize for Applicant Tracking Systems (ATS)
+
+    🚫 STRICT RULES:
+    - NEVER fabricate results, metrics, tools, or achievements not clearly implied
+    - Do NOT add soft skills, personality traits, or generic filler (e.g., communication, hardworking)
+    - DO NOT echo the original passively — rewrite with impact
+    - Keep to a **single concise bullet** (1 sentence max)
+    - NO emojis, markdown, formatting, or explanations
+
+    ---
+
+    Original Bullet:
+    "{original_bullet.strip()}"
+
+    {context}
+
+
+    Return ONLY the rewritten bullet. No preamble, no formatting, no explanation.
+        """
+
+    try:
+        response = client.chat.completions.create(
+            model="gpt-4",
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.3
+        )
+        return response.choices[0].message.content.strip()
+    except Exception as e:
+        print(f"[Bullet Rewrite Error] {e}")
+        return original_bullet  # Fallback to original if GPT fails
+
+
+def filter_and_rewrite_bullets(
+    bullets: list[str],
+    threshold: float = 0.76,
+    min_required: int = 3,
+    max_total: int = 6,
+    resume_text: str = ""
+) -> tuple[list[str], bool]:
+    """
+    Filters strong bullets, rewrites weak ones if too few pass, and caps output.
+    Returns final list and a flag if fallback was triggered.
+    """
+
+    if not bullets:
+        return [], False
+
+    # Step 1: Score all bullets
+    scored = [(b, evaluate_bullet_quality(b, threshold)) for b in bullets]
+
+    # Step 2: Extract high-quality bullets only
+    good = [b for b, meta in scored if "low_quality" not in meta["tags"]]
+
+    # === ✅ REWRITE ONLY IF ≤ 1 good bullets ===
+    rewritten = []
+    fallback_triggered = False
+    if len(good) <= 2:
+        for b, meta in scored:
+            if "low_quality" in meta["tags"]:
+                rewritten_bullet = rewrite_bullet_with_gpt(b, resume_text=resume_text, score=meta["score"])
+                rewritten.append(rewritten_bullet)
+
+    # Step 3: Combine (original good + rewritten if applicable)
+    combined = good + rewritten
+
+    # Step 4: Fallback if we STILL don’t have enough
+    if len(combined) < min_required:
+        fallback_triggered = True
+        sorted_fallback = sorted(scored, key=lambda x: x[1]["score"], reverse=True)
+        combined = [b for b, _ in sorted_fallback[:min_required]]
+
+    # Step 5: Enforce hard cap
+    final = combined[:max_total]
+
+    return final, fallback_triggered
+

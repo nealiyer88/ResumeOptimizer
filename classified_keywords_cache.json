@@ -291,5 +291,9 @@
   "saas": "tool_platform",
   "subscription": "domain_knowledge",
   "table": "tool_platform",
-  "vlookup": "tool_platform"
+  "vlookup": "tool_platform",
+  "innovation": "soft_skill",
+  "kaplan": "tool_platform",
+  "leader": "soft_skill",
+  "technology": "tool_platform"
 }

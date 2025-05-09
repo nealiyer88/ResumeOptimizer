@@ -1,7 +1,8 @@
 # === semantic_filter.py ===
 
 import os
-import openai
+from openai import OpenAI
+client = OpenAI()
 import numpy as np
 from dotenv import load_dotenv
 from typing import List
@@ -9,18 +10,18 @@ from sklearn.metrics.pairwise import cosine_similarity
 
 # Load OpenAI API key
 load_dotenv()
-openai.api_key = os.getenv("OPENAI_API_KEY")
+client.api_key = os.getenv("OPENAI_API_KEY")
 
 # === 1. Embed any text ===
 def embed_text(text: str) -> List[float]:
     """Embed text using OpenAI text-embedding-ada-002."""
     try:
-        response = openai.Embedding.create(
+        response = client.embeddings.create(
             input=[text],
             model="text-embedding-ada-002"
         )
-        embedding = response['data'][0]['embedding']
-        return embedding
+        embedding = response.data[0].embedding
+        return embedding            
     except Exception as e:
         print(f"[Embedding Error] {e}")
         return None
