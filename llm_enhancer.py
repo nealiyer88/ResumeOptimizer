@@ -2,38 +2,33 @@
 
 import os
 from openai import OpenAI
+import openai
 from dotenv import load_dotenv
 from typing import List
 from keyword_matcher import extract_keywords, filter_relevant_keywords
-
+import time
+from gpt_utils import gpt_safe_call, num_tokens
 
 # Load your OpenAI key securely
 load_dotenv()
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
+
 def enhance_summary_with_gpt(summary_text: str, filtered_keywords: list) -> str:
-    """
-    Enhance the 'summary' section of a resume using GPT-4,
-    by naturally incorporating filtered job description keywords.
-    """
-    prompt = f"""
+    def full_prompt():
+        return f"""
     You are enhancing the *Professional Summary* section of a resume.
 
     🎯 Your goal:
-    - Keep it **factual**, **concise**, and **punchy** — 
-    - Make it **impactful and succinct** — similar to a concise personal elevator pitch that can be read in under 10 seconds
-    - Do **not fabricate** degrees, tools, job history, industries, or domains that aren't clearly present in the resume
-    - ! If a keyword is **not clearly supported by the resume**, **OMIT it** — **do not guess or generalize**
-    - Do **not infer industries or domains** (e.g., "banking", "biotech") unless mentioned or strongly implied
-    - Avoid phrasing that implies lack of expertise (e.g., "entry-level", "junior", "beginner")
-    - Focus only on integrating missing *tools, certifications, or domain expertise* if appropriate
-    - Keep tone professional, clear, and confident
-    - **Avoid redundancy and vague phrasing**
-    - DO NOT fabricate achievements or job titles
-    -❗Do not introduce or modify job titles. Use only titles explicitly found in the resume (e.g., Analyst, Manager, Senior Manager).
-    - Avoid repeating Sentence starters more than once
-    - Sentence 2 should expand on sentence 1 — not duplicate it
-    - Always end summary with single punctuation. No trailing double periods.
+    - Keep it **factual**, **concise**, and **punchy** — like a personal elevator pitch under 10 seconds
+    - Do **not fabricate** tools, job history, industries, or domains not in the resume
+    - ❗ If a keyword is **not clearly supported by the resume**, **omit it** — do not guess or generalize
+    - Avoid inferred industries/domains (e.g., "banking", "biotech") unless explicitly stated
+    - Focus on relevant *tools, certifications, or domain expertise* only if appropriate
+    - Avoid redundancy, vague phrases, or filler language
+    - Do NOT introduce job titles not already present in the resume
+    - Avoid repeating sentence structures
+    - Cap summary to exactly **2 sentences and 40 words maximum**
 
     ---
 
@@ -47,24 +42,38 @@ def enhance_summary_with_gpt(summary_text: str, filtered_keywords: list) -> str:
 
     ---
 
-    Return ONLY the improved summary.
+    Return ONLY the improved summary. No "Summary:" label. No markdown. No extra formatting.
+    """.strip()
 
-    It is a hard cap: no more than 2 sentences AND no more than 40 words, total. Do not exceed either.
+    def trimmed_prompt():
+        short = summary_text.strip()
+        if "." in short:
+            short = ". ".join(short.split(".")[:2]) + "."
+        short = short[:300]
 
-    No bullet points. No "Summary:" label. No quotes. No formatting. Just plain text.
+        return f"""
+    Rewrite this into a 2-sentence, 40-word max professional summary.
+    Avoid job titles, soft skills, and tools not found in the resume.
 
-    """
+    Summary:
+    {short}
+    """.strip()
 
-    try:
+    def run(prompt: str) -> str:
         response = client.chat.completions.create(
             model="gpt-4",
             messages=[{"role": "user", "content": prompt}],
             temperature=0.0,
         )
         return response.choices[0].message.content.strip()
-    except Exception as e:
-        print(f"[Summary Enhancement Error] {e}")
-        return summary_text  # fallback to original
+
+    return gpt_safe_call(
+        prompt_fn=full_prompt,
+        fallback_prompt_fn=trimmed_prompt,
+        run_fn=run,
+        fallback_return=summary_text
+    )
+
 
 
 #Detect format of skills section (comma vs bullet separated)
@@ -135,21 +144,33 @@ def build_skills_prompt(skills_text, filtered_keywords: list, format_type: str) 
 
     return prompt
 
+# Enhance skills section using GPT with fallback for token limit breaches
 def enhance_skills_with_gpt(skills_text: str, filtered_keywords: list) -> str:
     format_type = detect_skills_format(skills_text)
-    prompt = build_skills_prompt(skills_text, filtered_keywords, format_type)
 
-    try:
+    def full_prompt():
+        return build_skills_prompt(skills_text, filtered_keywords, format_type)
+
+    def trimmed_prompt():
+        # Fallback: trim to first 300 chars and top 5 keywords
+        short_skills = str(skills_text).strip()[:300]
+        top_keywords = filtered_keywords[:5]
+        return build_skills_prompt(short_skills, top_keywords, format_type)
+
+    def run(prompt):
         response = client.chat.completions.create(
             model="gpt-4",
             messages=[{"role": "user", "content": prompt}],
             temperature=0.0,
         )
         return response.choices[0].message.content.strip()
-    
-    except Exception as e:
-        print(f"[Skills Enhancement Error] {e}")
-        return skills_text  # fallback to original
+
+    return gpt_safe_call(
+        prompt_fn=full_prompt,
+        fallback_prompt_fn=trimmed_prompt,
+        run_fn=run,
+        fallback_return=skills_text  # fallback to original if both prompts fail
+    )
 
 # Assembles the instruction to GPT
 # Embeds the original bullets
@@ -202,32 +223,33 @@ def enhance_experience_job(
     job: dict,
     filtered_keywords: List[str],
     job_posting: str,
-    original_bullet_count: int  # 👈 Add this!
+    original_bullet_count: int
 ) -> dict:
-
-    """
-    Enhance a single job entry using GPT-4.
-    Inputs:
-        job: dict with keys 'title', 'company', 'date_range', 'bullets'
-        missing_keywords: relevant keywords not found in original resume
-        job_posting: full JD text for tone/keyword guidance
-    Returns:
-        New job dict with same structure but enhanced bullet points
-    """
-    from openai import OpenAI  # Ensure OpenAI is loaded after dotenv
+    from openai import OpenAI
     client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
-    bullets = job["bullets"]
+    bullets = job.get("bullets", [])
     if isinstance(bullets, str):
         bullets = bullets.splitlines()
 
-    prompt = build_experience_prompt(
-        bullets=bullets,
-        filtered_keywords=filtered_keywords,
-        job_posting=job_posting,
-    )
+    def full_prompt():
+        return build_experience_prompt(
+            bullets=bullets,
+            filtered_keywords=filtered_keywords,
+            job_posting=job_posting
+        )
 
-    try:
+    def trimmed_prompt():
+        short_bullets = bullets[:3]  # Keep only top 3 bullets
+        short_keywords = filtered_keywords[:5]
+        short_jd = job_posting[:1000]
+        return build_experience_prompt(
+            bullets=short_bullets,
+            filtered_keywords=short_keywords,
+            job_posting=short_jd
+        )
+
+    def run(prompt):
         response = client.chat.completions.create(
             model="gpt-4",
             messages=[{"role": "user", "content": prompt}],
@@ -239,22 +261,30 @@ def enhance_experience_job(
             for line in enhanced_text.splitlines()
             if line.strip()
         ]
-                # Enforce bullet limit: Keep at most 6
-        # Enforce bullet cap: 6 for all jobs, unless original had fewer
-        max_bullets = max(min(original_bullet_count + 2, 6), original_bullet_count)
-        enhanced_bullets = enhanced_bullets[:max_bullets]
 
+        # Enforce bullet cap: 6 or original + 2, whichever is smaller
+        max_bullets = max(min(original_bullet_count + 2, 6), original_bullet_count)
+        return enhanced_bullets[:max_bullets]
+
+    try:
+        enhanced_bullets = gpt_safe_call(
+            prompt_fn=full_prompt,
+            fallback_prompt_fn=trimmed_prompt,
+            run_fn=run,
+            fallback_return=bullets
+        )
 
         return {
-            "title": job["title"],
-            "company": job["company"],
-            "date_range": job["date_range"],
+            "title": job.get("title", ""),
+            "company": job.get("company", ""),
+            "date_range": job.get("date_range", ""),
             "bullets": enhanced_bullets,
         }
 
     except Exception as e:
         print(f"[Experience Enhancement Error] {e}")
-        return job  # fallback to original
+        return job  # fallback to original if anything fails
+
 
 def build_projects_prompt(projects_text, filtered_keywords: list) -> str:
     if isinstance(projects_text, dict):
@@ -294,15 +324,27 @@ The original content is below:
 Return only the improved Projects section — no section header, no explanations.
 """.strip()
 
-def enhance_projects_with_gpt(projects_text, filtered_keywords: list) -> str:
-    prompt = build_projects_prompt(projects_text, filtered_keywords)
-    try:
+def enhance_projects_with_gpt(projects_text: str, filtered_keywords: list) -> str:
+    def full_prompt():
+        return build_projects_prompt(projects_text, filtered_keywords)
+
+    def trimmed_prompt():
+        short_projects = str(projects_text).strip()[:600]  # fallback to ~600 chars
+        top_keywords = filtered_keywords[:5]
+        return build_projects_prompt(short_projects, top_keywords)
+
+    def run(prompt):
         response = client.chat.completions.create(
             model="gpt-4",
             messages=[{"role": "user", "content": prompt}],
             temperature=0.3,
         )
         return response.choices[0].message.content.strip()
-    except Exception as e:
-        print(f"[Projects Enhancement Error] {e}")
-        return projects_text  # fallback
+
+    return gpt_safe_call(
+        prompt_fn=full_prompt,
+        fallback_prompt_fn=trimmed_prompt,
+        run_fn=run,
+        fallback_return=projects_text
+    )
+

@@ -3,12 +3,33 @@ from openai import OpenAI
 from sklearn.metrics.pairwise import cosine_similarity
 from pathlib import Path
 import json
+from tiktoken import get_encoding
+from gpt_utils import gpt_safe_call, num_tokens
+
 
 client = OpenAI()
 
+EMBED_LIMIT = 8100  # conservative buffer under 8192 max
+
 def embed_text(text: str, model: str = "text-embedding-ada-002") -> list[float]:
-    response = client.embeddings.create(input=[text], model=model)
-    return response.data[0].embedding
+    try:
+        if num_tokens(text) > EMBED_LIMIT:
+            print(f"✂️ Truncating text from {num_tokens(text)} tokens to fit embedding model limit...")
+            words = text.split()
+            truncated = []
+            for word in words:
+                truncated.append(word)
+                if num_tokens(" ".join(truncated)) >= EMBED_LIMIT:
+                    break
+            text = " ".join(truncated)
+
+        response = client.embeddings.create(input=[text], model=model)
+        return response.data[0].embedding
+
+    except Exception as e:
+        print(f"[Embedding Error] {e}")
+        return []
+
 
 REFERENCE_BULLETS_PATH = Path("reference_bullets.json")
 
@@ -32,7 +53,9 @@ def regenerate_summary_line(original_sentence: str, resume_text: str) -> str:
     """
     Use GPT to rewrite a hallucinated summary sentence using only information from the resume.
     """
-    prompt = f"""
+
+    def full_prompt():
+        return f"""
     You are rewriting a single summary sentence from a resume. The original sentence may include hallucinated tools, technologies, or traits. Your job is to rewrite it using only content clearly supported by the resume.
 
     🎯 Rules:
@@ -51,25 +74,44 @@ def regenerate_summary_line(original_sentence: str, resume_text: str) -> str:
     ---
 
     Resume (source of truth):
-    \"\"\"
-    {resume_text.strip()}
-    \"\"\"
+    \"\"\"{resume_text.strip()}\"\"\"
 
     Original sentence (possibly hallucinated):
     {original_sentence.strip()}
 
     ---
 
-    Return only the rewritten version.
-    No quotes. No labels. No formatting.
-    """
+    Return only the rewritten version. No quotes. No labels. No formatting.
+    """.strip()
 
-    response = client.chat.completions.create(
-        model="gpt-4",
-        temperature=0.3,
-        messages=[{"role": "user", "content": prompt}]
+    def trimmed_prompt():
+        return f"""
+    Rewrite the following resume summary sentence using grounded, resume-backed language.
+
+    Sentence:
+    "{original_sentence.strip()}"
+
+    Resume snippet:
+    {resume_text.strip()[:800]}
+
+    Do not fabricate tools, roles, or experience. Return only the rewritten sentence.
+    """.strip()
+
+    def run(prompt):
+        response = client.chat.completions.create(
+            model="gpt-4",
+            temperature=0.3,
+            messages=[{"role": "user", "content": prompt}]
+        )
+        return response.choices[0].message.content.strip()
+
+    return gpt_safe_call(
+        prompt_fn=full_prompt,
+        fallback_prompt_fn=trimmed_prompt,
+        run_fn=run,
+        fallback_return=original_sentence
     )
-    return response.choices[0].message.content.strip()
+
 
 def sanitize_summary(summary_text: str, resume_text: str, threshold: float = 0.82) -> str:
     """
@@ -154,7 +196,9 @@ def rewrite_skills_from_resume(resume_text: str, filtered_keywords: list[str]) -
     Rebuild the Skills section using GPT-4 based on resume truth and job relevance.
     Includes grouped formatting if logical. Domain-agnostic.
     """
-    prompt = f"""
+
+    def full_prompt():
+        return f"""
     You are generating the Skills section of a resume using only information from the resume text.
 
     💡 Your goal:
@@ -167,23 +211,42 @@ def rewrite_skills_from_resume(resume_text: str, filtered_keywords: list[str]) -
     - Use clean headers like 'Finance Tools:' or 'BI Platforms:', not emojis
 
     Resume (source of truth):
-    \"\"\"
-    {resume_text.strip()}
-    \"\"\"
+    \"\"\"{resume_text.strip()}\"\"\"
 
     Relevant keywords from the job posting:
     {", ".join(filtered_keywords)}
 
     Return only the formatted Skills section with no commentary.
-    """
+    """.strip()
 
-    response = client.chat.completions.create(
-        model="gpt-4",
-        temperature=0.3,
-        messages=[{"role": "user", "content": prompt}]
+    def trimmed_prompt():
+        return f"""
+    Rebuild this resume's Skills section using grouped formatting only for keywords clearly supported below.
+
+    Relevant keywords:
+    {", ".join(filtered_keywords[:5])}
+
+    Resume snippet:
+    {resume_text.strip()[:1000]}
+
+    Avoid fabrication. Return only the formatted Skills section.
+    """.strip()
+
+    def run(prompt):
+        response = client.chat.completions.create(
+            model="gpt-4",
+            temperature=0.3,
+            messages=[{"role": "user", "content": prompt}]
+        )
+        return response.choices[0].message.content.strip()
+
+    return gpt_safe_call(
+        prompt_fn=full_prompt,
+        fallback_prompt_fn=trimmed_prompt,
+        run_fn=run,
+        fallback_return=""
     )
 
-    return response.choices[0].message.content.strip()
 
 def evaluate_bullet_quality(bullet: str, threshold: float = 0.76) -> dict:
     """
@@ -220,7 +283,8 @@ def rewrite_bullet_with_gpt(original_bullet: str, resume_text: str = "", score: 
 
     context = f"\nResume context for reference:\n{resume_text.strip()}" if resume_text else ""
 
-    prompt = f"""
+    def full_prompt():
+        return f"""
     You are rewriting a resume bullet point to be clearer, more impactful, and ATS-optimized.
 
     🎯 GOAL:
@@ -244,20 +308,37 @@ def rewrite_bullet_with_gpt(original_bullet: str, resume_text: str = "", score: 
 
     {context}
 
-
     Return ONLY the rewritten bullet. No preamble, no formatting, no explanation.
-        """
+    """.strip()
 
-    try:
+    def trimmed_prompt():
+        return f"""
+    Rewrite this resume bullet clearly and concisely using the snippet below as resume context.
+
+    Bullet:
+    "{original_bullet.strip()}"
+
+    Context:
+    {resume_text.strip()[:1000]}
+
+    Avoid vague phrasing or fabrication. Return just the improved bullet.
+    """.strip()
+
+    def run(prompt):
         response = client.chat.completions.create(
             model="gpt-4",
             messages=[{"role": "user", "content": prompt}],
             temperature=0.3
         )
         return response.choices[0].message.content.strip()
-    except Exception as e:
-        print(f"[Bullet Rewrite Error] {e}")
-        return original_bullet  # Fallback to original if GPT fails
+
+    return gpt_safe_call(
+        prompt_fn=full_prompt,
+        fallback_prompt_fn=trimmed_prompt,
+        run_fn=run,
+        fallback_return=original_bullet
+    )
+
 
 
 def filter_and_rewrite_bullets(
@@ -277,6 +358,14 @@ def filter_and_rewrite_bullets(
 
     # Step 1: Score all bullets
     scored = [(b, evaluate_bullet_quality(b, threshold)) for b in bullets]
+    print("\n📊 Bullet Similarity Scores:")
+    for b, meta in scored:
+        score = meta["score"]
+        tags = ", ".join(meta["tags"]) if meta["tags"] else "✅ passed"
+        flag = "✅" if score >= threshold else "❌"
+        print(f"{flag} {score:.3f} | {tags:30} | {b.strip()[:90]}")
+
+
 
     # Step 2: Extract high-quality bullets only
     good = [b for b, meta in scored if "low_quality" not in meta["tags"]]
